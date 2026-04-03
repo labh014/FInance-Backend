@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import userRoutes from "./modules/user/user.routes.js";
+import financeRoutes from "./modules/finance/finance.routes.js";
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/users", userRoutes);
+app.use("/api/records", financeRoutes);
 
 const PORT = process.env.PORT || 5000;
 
