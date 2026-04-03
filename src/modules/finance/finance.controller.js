@@ -1,12 +1,22 @@
 import prisma from "../../config/prisma.js";
+import { recordSchema } from "../../utils/validation.js";
 
-export const createRecord = async (req, res) => {
+export const createRecord = async (req, res, next) => {
   try {
-    const { amount, type, category, note, date } = req.body;
+    const parsed = recordSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        message: parsed.error.errors
+      });
+    }
+
+    const { amount, type, category, note, date } = parsed.data;
 
     const record = await prisma.record.create({
       data: {
-        amount: parseFloat(amount),
+        amount,
         type,
         category,
         note,
@@ -15,13 +25,13 @@ export const createRecord = async (req, res) => {
       }
     });
 
-    res.json(record);
+    res.json({ success: true, data: record });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
-export const getRecords = async (req, res) => {
+export const getRecords = async (req, res, next) => {
   try {
     const { type, category, startDate, endDate, page = 1, limit = 10 } = req.query;
 
@@ -39,13 +49,9 @@ export const getRecords = async (req, res) => {
         lte: new Date(endDate)
       };
     } else if (startDate) {
-      filters.date = {
-        gte: new Date(startDate)
-      };
+      filters.date = { gte: new Date(startDate) };
     } else if (endDate) {
-      filters.date = {
-        lte: new Date(endDate)
-      };
+      filters.date = { lte: new Date(endDate) };
     }
 
     const total = await prisma.record.count({ where: filters });
@@ -62,19 +68,32 @@ export const getRecords = async (req, res) => {
     });
 
     res.json({
-      total,
-      page: pageNum,
-      limit: limitNum,
-      data: records
+      success: true,
+      data: records,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum
+      }
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
-export const updateRecord = async (req, res) => {
+export const updateRecord = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    if (Object.keys(req.body).length > 0) {
+        const parsed = recordSchema.partial().safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({
+                success: false,
+                message: parsed.error.errors
+            });
+        }
+    }
 
     const updated = await prisma.record.update({
       where: { 
@@ -84,16 +103,16 @@ export const updateRecord = async (req, res) => {
       data: req.body
     });
 
-    res.json(updated);
+    res.json({ success: true, data: updated });
   } catch (err) {
     if (err.code === 'P2025') {
-       return res.status(404).json({ message: "Record not found or unauthorized" });
+       return res.status(404).json({ success: false, message: "Record not found or unauthorized" });
     }
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
 
-export const deleteRecord = async (req, res) => {
+export const deleteRecord = async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -108,11 +127,11 @@ export const deleteRecord = async (req, res) => {
       }
     });
 
-    res.json({ message: "Record deleted" });
+    res.json({ success: true, message: "Record deleted" });
   } catch (err) {
     if (err.code === 'P2025') {
-       return res.status(404).json({ message: "Record not found or unauthorized" });
+       return res.status(404).json({ success: false, message: "Record not found or unauthorized" });
     }
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 };
