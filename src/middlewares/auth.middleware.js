@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
+import prisma from "../config/prisma.js";
 
-export const authenticate = (req, res, next) => {
+export const authenticate = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {
@@ -11,6 +12,18 @@ export const authenticate = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // block inactivate users
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id }
+    });
+
+    if (!user || user.isActive === false) {
+      return res.status(403).json({
+        message: "User is inactive or deleted"
+      });
+    }
+
     req.user = decoded;
     next();
   } catch {
